@@ -9,19 +9,18 @@ using TableView
 #ENV["GUROBI_HOME"] = "C:/gurobi950/win64"
 #Pkg.build("Gurobi") # verifica se instalacao esta ok
 var_plot=1
-
 ## Definicao de variaveis
-
 # Dimensoes do pallete -----------------------------------------------
 # Width (W) - largura
 # Length (L)- comprimento
 # D_P = [L, W, H]
 # D_P = [12,10,15] # Vetor
+#D_P = [20,20,20] # Vetor
 
 # Dimensoes da caixa ------------------------------------------
 # d_c = [l, w, h]
 # d_c = [6,4,5]
-df_dados_caixas = DataFrame(CSV.File("dados_caixas_teste.csv"))
+df_dados_caixas = DataFrame(CSV.File("C:/Users/mizus/OneDrive/Área de Trabalho/Palete Trabalho/Trabalho Interira/dados_caixas_teste.csv"))
 
 # Gerar combinacoes de rotacao para cada caixa
 # Retirado desse modelo pois nao precisamos
@@ -29,19 +28,20 @@ df_dados_caixas = DataFrame(CSV.File("dados_caixas_teste.csv"))
 # for i in 1:factorial(length(d_c))
 #     ary_posicoes=[ary_posicoes;transpose(append!([i],collect(nthperm(d_c,i))))]
 # end
-
 ary_posicoes=Array{Int64}(undef, 0, 4)
 # ary_posicoes=df_dados_caixas[:,1:4]
 ary_posicoes=df_dados_caixas[2:end, ["index","comprimento","largura","altura"]]
 
-ary_posicoes=df_dados_caixas[2:6, ["index","comprimento","largura","altura"]]
+ary_posicoes=df_dados_caixas[2:5, ["index","comprimento","largura","altura"]]
 
 display(ary_posicoes)
 display(D_P)
 showtable(df_dados_caixas)
 showtable(ary_posicoes)
 
+
 ## Gerar conjunto O (length)
+inicio=now() # inicio do pre-processamento
 coord_O = Int[] # Conjunto dos pontos p horizontais (length)
 # n_max onde as iteracoes devem parar,
 # o grid nao pode ser maior que isso pois a caixa nao cabe
@@ -52,14 +52,14 @@ for n_i in 1:length(ary_posicoes[:,1])
     push!(n_max_O, Vector{Int64}(0:trunc(Int,D_P[1]/ary_posicoes[n_i,2])))
 end
 println(n_max_O)
-ary_comb_n=collect(Iterators.product(n_max_O...))
+ary_comb_n=Iterators.product(n_max_O...)
 
 # Posicoes que as caixas odem ocupar
 # restricao para criacao do grid D_P(L) - max(d_c)
 Max_O = D_P[1] - minimum(ary_posicoes[:,2])
 # loop para montar o grid
-for n_i in 1:length(ary_comb_n)
-    coord_p=sum(collect(ary_comb_n[n_i]) .* ary_posicoes[:,2]) # produto vetorial
+for n_i in ary_comb_n
+    coord_p=sum(n_i .* ary_posicoes[:,2]) # produto vetorial
     if coord_p<=Max_O
         append!(coord_O,coord_p)
     end
@@ -79,15 +79,15 @@ for n_i in 1:length(ary_posicoes[:,1])
     push!(n_max_R, Vector{Int64}(0:trunc(Int,D_P[2]/ary_posicoes[n_i,3])))
 end
 println(n_max_R)
-ary_comb_n=collect(Iterators.product(n_max_R...))
+ary_comb_n=Iterators.product(n_max_R...)
 #ar[2]
 # Posicoes que as caixas odem ocupar
 # restricao para criacao do grid D_P(L) - max(d_c)
 Max_R = D_P[2] - minimum(ary_posicoes[:,3])
 # loop para montar o grid
 # Generalizar para mais caixas
-for n_i in 1:length(ary_comb_n)
-    coord_q=sum(collect(ary_comb_n[n_i]) .* ary_posicoes[:,3])
+for n_i in ary_comb_n
+    coord_q=sum(n_i .* ary_posicoes[:,3])
     if coord_q<=Max_R
         append!(coord_R,coord_q)
     end
@@ -106,22 +106,22 @@ for n_i in 1:length(ary_posicoes[:,1])
     push!(n_max_A, Vector{Int64}(0:trunc(Int,D_P[3]/ary_posicoes[n_i,4])))
 end
 println(n_max_A)
-ary_comb_n=collect(Iterators.product(n_max_A...))
+ary_comb_n=Iterators.product(n_max_A...)
 #ar[2]
 # Posicoes que as caixas odem ocupar
 # restricao para criacao do grid D_P(L) - max(d_c)
 Max_A = D_P[3] - minimum(ary_posicoes[:,4])
 # loop para montar o grid
 # Generalizar para mais caixas
-for n_i in 1:length(ary_comb_n)
-    coord_r=sum(collect(ary_comb_n[n_i]) .* ary_posicoes[:,4])
+for n_i in ary_comb_n
+    coord_r=sum(n_i .* ary_posicoes[:,4])
     if coord_r<=Max_A
         append!(coord_A,coord_r)
     end
 end
 unique!(coord_A)
 println("Conjunto A de posições p (bottom-left) que pertmitem caixas, A =",coord_A)
-
+fim = now()-inicio
 ## Montagem do plot do grid
 ary_cood=Array{Int64}(undef, 0, 3)
 for n_i in coord_O
@@ -139,7 +139,7 @@ display(ary_cood)
 ary_cood=hcat(ary_cood,zeros(length(ary_cood[:,1])))
 
 
-# Pontos ddas dimensoes maximas do pallete
+# Pontos das dimensoes maximas do pallete
 ary_cood=[ary_cood;transpose([D_P[1],0,0,1])] # ultimo ponto na horizontal
 ary_cood=[ary_cood;transpose([0,D_P[2],0,1])] # ultimo ponto no width
 ary_cood=[ary_cood;transpose([0,0,D_P[3],1])] # ultimo ponto na vertical
@@ -285,7 +285,7 @@ showtable(df_coord_Cpqr)
 print(model_1)
 print(model_2)
 
-# Restricoes de quantidade ---------------------
+# Restricoes de quantidade
 
 for caixa in df_dados_caixas[2:end,:index]
     vec_res = zeros(Int64, length(df_coord_Cpqr[:,1])) # loop do ponto virtual
@@ -310,6 +310,8 @@ set_time_limit_sec(model_2,100)
 #JuMP.optimize!(model_1)
 JuMP.optimize!(model_2)
 
+
+
 println("Objective value: ", JuMP.objective_value(model_2))
 println(solution_summary(model_2, verbose=true))
 
@@ -318,9 +320,7 @@ df_resultados=DataFrame(
     name = var,
     Value = value.(var),
     )
-
-
-# Salva resultados ---------------------------------
+# Salva resultados
 CSV.write("C:/Users/mizus/OneDrive/Área de Trabalho/Palete Trabalho/resultado_teste_isntancia_1.csv",
   df_resultados,header=true,delim=";")
 # Salva restricoes de sobreposição
