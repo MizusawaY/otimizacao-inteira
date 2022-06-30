@@ -6,22 +6,22 @@ using Gurobi
 using PlotlyJS
 using Combinatorics
 using TableView
+using Dates
 #ENV["GUROBI_HOME"] = "C:/gurobi950/win64"
 #Pkg.build("Gurobi") # verifica se instalacao esta ok
 var_plot=1
-
 ## Definicao de variaveis
-
 # Dimensoes do pallete -----------------------------------------------
 # Width (W) - largura
 # Length (L)- comprimento
 # D_P = [L, W, H]
 # D_P = [12,10,15] # Vetor
+#D_P = [20,20,20] # Vetor
 
 # Dimensoes da caixa ------------------------------------------
 # d_c = [l, w, h]
 # d_c = [6,4,5]
-df_dados_caixas = DataFrame(CSV.File("dados_caixas_teste.csv"))
+df_dados_caixas = DataFrame(CSV.File("C:/Users/mizus/OneDrive/Área de Trabalho/Palete Trabalho/Trabalho Interira/dados_caixas_teste.csv"))
 
 # Gerar combinacoes de rotacao para cada caixa
 # Retirado desse modelo pois nao precisamos
@@ -29,98 +29,61 @@ df_dados_caixas = DataFrame(CSV.File("dados_caixas_teste.csv"))
 # for i in 1:factorial(length(d_c))
 #     ary_posicoes=[ary_posicoes;transpose(append!([i],collect(nthperm(d_c,i))))]
 # end
-
 ary_posicoes=Array{Int64}(undef, 0, 4)
 # ary_posicoes=df_dados_caixas[:,1:4]
 ary_posicoes=df_dados_caixas[2:end, ["index","comprimento","largura","altura"]]
 
-ary_posicoes=df_dados_caixas[2:6, ["index","comprimento","largura","altura"]]
+ary_posicoes=df_dados_caixas[2:4, ["index","comprimento","largura","altura"]]
 
 display(ary_posicoes)
 display(D_P)
 showtable(df_dados_caixas)
 showtable(ary_posicoes)
 
-## Gerar conjunto O (length)
-coord_O = Int[] # Conjunto dos pontos p horizontais (length)
-# n_max onde as iteracoes devem parar,
-# o grid nao pode ser maior que isso pois a caixa nao cabe
-# n_max_H = Comprimento(L)/(Lado da Caixa(i))
-n_max_O = Vector{Int64}[]
-# Cria um n_max_O para cada caixa
-for n_i in 1:length(ary_posicoes[:,1])
-    push!(n_max_O, Vector{Int64}(0:trunc(Int,D_P[1]/ary_posicoes[n_i,2])))
+## Funcao de montagem dos pontos para o grid
+function fun_gerar_coordenadas(ary_posicoes,D_P,direcao)
+    # direcao 1 no comprimento
+    # direcao 2 na largura
+    # direcao 3 na altura
+        ## Gerar conjunto O (length)
+        inicio=now() # inicio do pre-processamento
+        coord_O = Int[] # Conjunto dos pontos p horizontais (length)
+        # n_max onde as iteracoes devem parar,
+        # o grid nao pode ser maior que isso pois a caixa nao cabe
+        # n_max_H = Comprimento(L)/(Lado da Caixa(i))
+        n_max_O = Vector{Int64}[]
+        Max_O = D_P[direcao] - minimum(ary_posicoes[:,direcao+1])
+        # Cria um n_max_O para cada caixa
+        for n_i in 1:length(ary_posicoes[:,direcao+1])
+            push!(n_max_O, Vector{Int64}(0:trunc(Int,Max_O/ary_posicoes[n_i,direcao+1])))
+        end
+        ary_comb_n=Iterators.product(n_max_O...)
+        # Posicoes que as caixas odem ocupar
+        # restricao para criacao do grid D_P(L) - max(d_c)
+        # loop para montar o grid
+        for n_i in ary_comb_n
+            coord_p=sum(n_i .* ary_posicoes[:,direcao+1]) # produto vetorial
+            if coord_p<=Max_O
+                append!(coord_O,coord_p)
+            end
+        end
+        fim = now()-inicio
+        unique!(coord_O)
+        println("Executado em ", fim)
+        println("Conjunto de posições (bottom-left) que pertmitem caixas, Conj=",coord_O)
+        return coord_O
 end
-println(n_max_O)
-ary_comb_n=collect(Iterators.product(n_max_O...))
+## Gerar conjunto de pontos para o grid de todas as caixas
+coord_O=fun_gerar_coordenadas(ary_posicoes,D_P,1) # Coordenadas Comprimento
+coord_R=fun_gerar_coordenadas(ary_posicoes,D_P,2) # Coordenadas Largura
+coord_A=fun_gerar_coordenadas(ary_posicoes,D_P,3) # Coordenadas Altura
+# Caso a combinatoria seja maior que e10 - rever esse numero
+# gerar um grid unitario (definido) para todas as caixas
+coord_O = collect(0:5:D_P[1]) # Comprimento
+coord_R = collect(0:7:D_P[2]) # Largura
+coord_A = collect(0:5:D_P[3]) # Altura
 
-# Posicoes que as caixas odem ocupar
-# restricao para criacao do grid D_P(L) - max(d_c)
-Max_O = D_P[1] - minimum(ary_posicoes[:,2])
-# loop para montar o grid
-for n_i in 1:length(ary_comb_n)
-    coord_p=sum(collect(ary_comb_n[n_i]) .* ary_posicoes[:,2]) # produto vetorial
-    if coord_p<=Max_O
-        append!(coord_O,coord_p)
-    end
-end
-unique!(coord_O)
-println("Conjunto O de posições p (bottom-left) que pertmitem caixas, O=",coord_O)
 
-## Gerar conjunto R (width)
-coord_R = Int[] # Conjunto dos pontos p horizontais (length)df_da
-# n_max onde as iteracoes devem parar,
-# o grid nao pode ser maior que isso pois a caixa nao cabe
-# n_max_H = Comprimento(L)/(Lado da Caixa(i))
-n_max_R = Vector{Int64}[]
-# Cria um n_max_R para cada caixa
-for n_i in 1:length(ary_posicoes[:,1])
-    println(n_i)
-    push!(n_max_R, Vector{Int64}(0:trunc(Int,D_P[2]/ary_posicoes[n_i,3])))
-end
-println(n_max_R)
-ary_comb_n=collect(Iterators.product(n_max_R...))
-#ar[2]
-# Posicoes que as caixas odem ocupar
-# restricao para criacao do grid D_P(L) - max(d_c)
-Max_R = D_P[2] - minimum(ary_posicoes[:,3])
-# loop para montar o grid
-# Generalizar para mais caixas
-for n_i in 1:length(ary_comb_n)
-    coord_q=sum(collect(ary_comb_n[n_i]) .* ary_posicoes[:,3])
-    if coord_q<=Max_R
-        append!(coord_R,coord_q)
-    end
-end
-unique!(coord_R)
-println("Conjunto R de posições q (bottom-left) que pertmitem caixas, R = ",coord_R)
-## Gerar conjunto R (width)
-coord_A = Int[] # Conjunto dos pontos p horizontais (length)
-# n_max onde as iteracoes devem parar,
-# o grid nao pode ser maior que isso pois a caixa nao cabe
-# n_max_H = Comprimento(L)/(Lado da Caixa(i))
-n_max_A = Vector{Int64}[]
-# Cria um n_max_R para cada caixa
-for n_i in 1:length(ary_posicoes[:,1])
-    println(n_i)
-    push!(n_max_A, Vector{Int64}(0:trunc(Int,D_P[3]/ary_posicoes[n_i,4])))
-end
-println(n_max_A)
-ary_comb_n=collect(Iterators.product(n_max_A...))
-#ar[2]
-# Posicoes que as caixas odem ocupar
-# restricao para criacao do grid D_P(L) - max(d_c)
-Max_A = D_P[3] - minimum(ary_posicoes[:,4])
-# loop para montar o grid
-# Generalizar para mais caixas
-for n_i in 1:length(ary_comb_n)
-    coord_r=sum(collect(ary_comb_n[n_i]) .* ary_posicoes[:,4])
-    if coord_r<=Max_A
-        append!(coord_A,coord_r)
-    end
-end
-unique!(coord_A)
-println("Conjunto A de posições p (bottom-left) que pertmitem caixas, A =",coord_A)
 
 ## Montagem do plot do grid
 ary_cood=Array{Int64}(undef, 0, 3)
@@ -139,7 +102,7 @@ display(ary_cood)
 ary_cood=hcat(ary_cood,zeros(length(ary_cood[:,1])))
 
 
-# Pontos ddas dimensoes maximas do pallete
+# Pontos das dimensoes maximas do pallete
 ary_cood=[ary_cood;transpose([D_P[1],0,0,1])] # ultimo ponto na horizontal
 ary_cood=[ary_cood;transpose([0,D_P[2],0,1])] # ultimo ponto no width
 ary_cood=[ary_cood;transpose([0,0,D_P[3],1])] # ultimo ponto na vertical
@@ -160,7 +123,6 @@ plot(
 )
 
 
-
 #CSV.write("D:/GoogleDrive/Mestrado/ICMC/Apresentações/Palete de Caixas/combinatoria[10_645]_O.csv",
 # ary_comb_n,header=false,delim=";")
 
@@ -175,18 +137,17 @@ plot(
 # onde, i = caixa vertical ou horizontal
 # (p,q, r) coordenadas
 # Montagem do conjunto de coordendas para cada tipo de caixa
-
 df_coord_Cpqr=Array{Any}(undef, 0, 6)
-for n_i in 1:length(ary_posicoes[:,1])
-    conj_p = coord_O[coord_O .<= (D_P[1]-ary_posicoes[n_i,2])]
-    conj_q = coord_R[coord_R .<= (D_P[2]-ary_posicoes[n_i,3])]
-    conj_r = coord_A[coord_A .<= (D_P[3]-ary_posicoes[n_i,4])]
+for n_i in ary_posicoes[:,1]
+    conj_p = coord_O[coord_O .<= (D_P[1]-ary_posicoes[n_i+1,2])]
+    conj_q = coord_R[coord_R .<= (D_P[2]-ary_posicoes[n_i+1,3])]
+    conj_r = coord_A[coord_A .<= (D_P[3]-ary_posicoes[n_i+1,4])]
     #println(conj_p,conj_q,conj_r)
     for n_p in conj_p
       for n_q in conj_q
           for n_r in conj_r
-              str_coord=string(string(n_i),"_",n_p,"_",n_q ,"_",n_r)
-              df_coord_Cpqr=[df_coord_Cpqr;permutedims([n_i,n_p,n_q,n_r,str_coord,
+              str_coord=string(string(n_i+1),"_",n_p,"_",n_q ,"_",n_r)
+              df_coord_Cpqr=[df_coord_Cpqr;permutedims([n_i+1,n_p,n_q,n_r,str_coord,
               select(subset(df_dados_caixas, :index => a -> a .== n_i),:volume)[:,1][1]])]
           end
       end
@@ -199,19 +160,19 @@ display(df_coord_Cpqr)
 ## FO
 model_1 = Model(Cbc.Optimizer)
 model_2 = Model(Gurobi.Optimizer)
-model_2 = Model(Cbc.Optimizer)
+#model_2 = Model(Cbc.Optimizer)
 
 # Generalizar esta parte
 @variable(model_1,x_1[i=1:length(df_coord_Cpqr[:,5])], binary=true)
 @variable(model_2,x_2[df_coord_Cpqr[:,5]], binary=true)
 #Convertendo para uma vetor float para multiplicar com a variavel
 coef=Vector{Float64}(df_coord_Cpqr[:,6])
-@objective(model_1, Max, sum(x_1))
+@objective(model_1, Max, sum(coef' *x_1))
 @objective(model_2, Max, sum(coef' * x_2))
 
 
-print(model_1)
-print(model_2)
+#print(model_1)
+#print(model_2)
 
 
 ## Restricoes
@@ -268,12 +229,12 @@ for n_stu in 1:length(ary_cood_e[:,1])
     # println(vec_res)
     # coluna 6 comecam as restricoes
     df_coord_Cpqr=hcat(df_coord_Cpqr,vec_res)
-    @constraint(model_1,sum(vec_res' * x_1)<= 1)
+    #@constraint(model_1,sum(vec_res' * x_1)<= 1)
     @constraint(model_2,sum(vec_res' * x_2)<= 1)
 end
 # coluna 6 comecam as restricoes
 display(df_coord_Cpqr)
-showtable(df_coord_Cpqr)
+# showtable(df_coord_Cpqr)
 
 # Numero maximo de caixas no pallete
 # Rever no cenário de  caixas diferentes
@@ -282,47 +243,49 @@ showtable(df_coord_Cpqr)
 # @constraint(model_1,sum(x_1)<= max_c)
 # @constraint(model_2,sum(x_2)<= max_c)
 
-print(model_1)
-print(model_2)
 
-# Restricoes de quantidade ---------------------
 
+# Restricoes de quantidade
 for caixa in df_dados_caixas[2:end,:index]
     vec_res = zeros(Int64, length(df_coord_Cpqr[:,1])) # loop do ponto virtual
     for tipo in 1:length(x_2)
-        if caixa==df_coord_Cpqr[tipo,1]
+        if (caixa+1)==df_coord_Cpqr[tipo,1]
             vec_res[tipo]=1
         else
             vec_res[tipo]=0
         end
     end
     #println(vec_res' * x_2)
-    @constraint(model_1,sum(vec_res' * x_1)<= df_dados_caixas[caixa+1,:quantidade])
-    @constraint(model_2,sum(vec_res' * x_2)<= df_dados_caixas[caixa+1,:quantidade])
-
+    iter=caixa+2
+    #@constraint(model_1,sum(vec_res' * x_1)<= df_dados_caixas[iter,:quantidade])
+    @constraint(model_2,sum(vec_res' * x_2)<= df_dados_caixas[iter,:quantidade])
 end
+
+
+
 # Otimizar
 #JuMP.optimize!(model_1)
 #println("Objective value: ", JuMP.objective_value(model_1))
 #println(solution_summary(model_1, verbose=true))
 
-set_time_limit_sec(model_2,100)
+set_time_limit_sec(model_2,10*60)#
 #JuMP.optimize!(model_1)
 JuMP.optimize!(model_2)
 
+
+
 println("Objective value: ", JuMP.objective_value(model_2))
-println(solution_summary(model_2, verbose=true))
+println(solution_summary(model_2, verbose=false))
 
 var = all_variables(model_2)
 df_resultados=DataFrame(
     name = var,
     Value = value.(var),
     )
-
-
-# Salva resultados ---------------------------------
-CSV.write("C:/Users/mizus/OneDrive/Área de Trabalho/Palete Trabalho/resultado_teste_isntancia_1.csv",
+# Salva resultados
+CSV.write("C:/Users/mizus/OneDrive/Área de Trabalho/Palete Trabalho/resultado_teste_isntancia_1_ajuste_grid_simples.csv",
   df_resultados,header=true,delim=";")
 # Salva restricoes de sobreposição
 #CSV.write("C:/Users/mizus/OneDrive/Área de Trabalho/Palete Trabalho/restrições_sobreposição_teste_1.csv",
 #  Tables.table(df_coord_Cpqr),header=false,delim=";")
+solution_summary(model_2)
